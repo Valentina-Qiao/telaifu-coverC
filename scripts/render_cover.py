@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
@@ -21,14 +22,11 @@ RESAMPLE = Image.Resampling.LANCZOS
 ASSETS = Path(__file__).resolve().parents[1] / "assets"
 
 
-def get_fonts():
-    fonts = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts"
-    headline = fonts / "STXINGKA.TTF"
-    source = fonts / "msyhbd.ttc"
-    missing = [str(path) for path in (headline, source) if not path.is_file()]
-    if missing:
-        raise FileNotFoundError("Missing C cover fonts: " + ", ".join(missing))
-    return headline, source
+def windows_font(filename):
+    path = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts" / filename
+    if not path.is_file():
+        raise FileNotFoundError(f"Missing Windows font for local text rendering: {path}")
+    return path
 
 
 def fit_font(draw, text, path, max_size, min_size, width, height):
@@ -99,20 +97,33 @@ def subtitle_layer(text, path):
     return banner.rotate(7, resample=Image.Resampling.BICUBIC, expand=True)
 
 
-def source_layer(shop, path):
-    if shop == DEFAULT_SOURCE:
-        with Image.open(ASSETS / "approved-source-badge.png") as approved:
-            return ImageOps.contain(approved.convert("RGBA"), (895, 145), method=RESAMPLE)
-    badge = brush_layer(895, 137, "#fff6d4", "#fff9e8")
+def normalize_shop(value):
+    text = (value or "").strip()
+    shop = re.sub(r"^素材来源[ \t]*[：:][ \t]*", "", text).strip()
+    return shop or DEFAULT_SOURCE
+
+
+def replace_badge_store(badge, shop):
+    # The reference raster's store-name slot. Keep the prefix and ornaments intact.
+    x1, y1, x2, y2 = 398, 23, 730, 82
+    upper = badge.crop((x1, y1 - 1, x2, y1))
+    lower = badge.crop((x1, y2, x2, y2 + 1))
+    for y in range(y1, y2):
+        gradient_row = Image.blend(upper, lower, (y - y1 + 1) / (y2 - y1 + 1))
+        badge.paste(gradient_row, (x1, y))
     draw = ImageDraw.Draw(badge)
-    draw.polygon([(64, 67), (89, 67), (105, 66), (79, 102)], fill="#efad1d")
-    draw.ellipse((51, 33, 107, 89), fill="#f7b925")
-    draw.ellipse((69, 51, 89, 71), fill="#fff9dd")
-    draw.rounded_rectangle((128, 104, 626, 112), radius=4, fill="#efb82e")
-    caption = f"素材来源：{shop}"
-    font, (_, top, _, bottom) = fit_font(draw, caption, path, 54, 31, 735, 58)
-    draw.text((145, (99 - (bottom - top)) // 2 - top + 1), caption, font=font, fill=DARK)
-    return badge.rotate(1, resample=Image.Resampling.BICUBIC, expand=True)
+    font, (left, top, _, bottom) = fit_font(
+        draw, shop, windows_font("msyhbd.ttc"), 54, 22, x2 - 407, 44
+    )
+    draw.text((407 - left, 53 - (bottom - top) // 2 - top), shop, font=font, fill=DARK)
+
+
+def source_layer(shop):
+    with Image.open(ASSETS / "approved-source-badge.png") as approved:
+        badge = approved.convert("RGBA")
+    if shop != DEFAULT_SOURCE:
+        replace_badge_store(badge, shop)
+    return ImageOps.contain(badge, (895, 145), method=RESAMPLE)
 
 
 def flourish(layer, control, max_width):
@@ -197,16 +208,15 @@ def place_native_headline(group, title, headline_font, banner):
 
 
 def compose(request):
-    headline_font, source_font = get_fonts()
     title = request["title"].strip()
     subtitle = request.get("subtitle", "").strip()
-    shop = request.get("shop", DEFAULT_SOURCE).strip()
+    shop = normalize_shop(request.get("shop"))
     focus = request.get("focus", [0.5, 0.5])
     fit = request.get("fit", "cover")
     if any("\n" in phrase or "\r" in phrase for phrase in (title, subtitle, shop)):
         raise ValueError("Title, subtitle and store must each be a single line.")
-    if not title or not shop:
-        raise ValueError("The title and material source store cannot be empty.")
+    if not title:
+        raise ValueError("The title cannot be empty.")
     if fit not in ("cover", "contain") or len(focus) != 2 or not all(0 <= v <= 1 for v in focus):
         raise ValueError("Use fit=cover or contain, and two focus coordinates between 0 and 1.")
     if not title.startswith("【"):
@@ -218,11 +228,12 @@ def compose(request):
 
     headline_image = request.get("headline_image")
     artwork = load_headline(headline_image) if headline_image else None
+    headline_font = None if artwork else windows_font("STXINGKA.TTF")
     banner = subtitle_layer(subtitle, headline_font) if subtitle and artwork is None else None
     upper_overlay_bottom = HEADLINE_BOTTOM if artwork else 0
     if banner:
         upper_overlay_bottom = SUBTITLE_POSITION[1] + banner.getbbox()[3]
-    badge = source_layer(shop, source_font)
+    badge = source_layer(shop)
     group = Image.new("RGBA", (WIDTH, FRAME[3]))
     place_photo(group, request["photo"], fit, focus, upper_overlay_bottom, SOURCE_TOP + badge.getbbox()[1])
     if artwork:

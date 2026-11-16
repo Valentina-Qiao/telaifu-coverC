@@ -20,7 +20,7 @@ New-Item -ItemType Directory -Path $skillsDir -Force | Out-Null
 git clone https://github.com/Valentina-Qiao/telaifu-coverC.git (Join-Path $skillsDir 'telaifu-coverC')
 ```
 
-在 Codex 里说「制作特徕福信息流 C 版封面」或调用 `$telaifu-coverC`，附上标题和原照。默认来源贴纸为「素材来源：特徕福昌岗店」，其他店名可在请求中指定。
+在 Codex 或 WorkBuddy 里调用 `telaifu-coverC`，提供标题和原照。默认来源直接复用确认稿的「素材来源：特徕福昌岗店」贴纸。指定其他店名时保留原贴纸上的「素材来源：」及装饰，只重排右侧店名。安装时导入完整技能目录，以便合成脚本读取随包贴纸。
 
 ## 制作与验收
 
@@ -28,7 +28,7 @@ git clone https://github.com/Valentina-Qiao/telaifu-coverC.git (Join-Path $skill
 2. 将透明字稿、原照片及来源贴纸合成。图片需要全幅保留时，用照片边缘延展填满相框。
 3. 检查整张 9:16 图和约 3:4 的后台可见区，确认字稿、产品细节和来源都完整可见。
 
-字稿生成使用 Codex 的 ImageGen。合成脚本使用 Windows 上带 Pillow 和 NumPy 的 Python，并读取系统的华文行楷和微软雅黑粗体。可使用 Codex 工作区提供的 Python，也可以在自己的 Python 环境中安装依赖：
+字稿生成可用 Codex 的 ImageGen。脚本依赖 Pillow 和 NumPy。使用独立标题字稿和默认来源贴纸时无需系统字体，本地标题和自定义门店名分别使用 Windows 的华文行楷和微软雅黑粗体。可使用 Codex 工作区提供的 Python，也可以在自己的 Python 环境中安装依赖：
 
 ```powershell
 python -m pip install Pillow NumPy
