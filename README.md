@@ -20,7 +20,7 @@ New-Item -ItemType Directory -Path $skillsDir -Force | Out-Null
 git clone https://github.com/Valentina-Qiao/telaifu-coverC.git (Join-Path $skillsDir 'telaifu-coverC')
 ```
 
-在 Codex 或 WorkBuddy 里调用 `telaifu-coverC`，提供标题和原照。默认来源直接复用确认稿的「素材来源：特徕福昌岗店」贴纸。指定其他店名时保留原贴纸上的「素材来源：」及装饰，只重排右侧店名。安装时导入完整技能目录，以便合成脚本读取随包贴纸。
+在 Codex 或 WorkBuddy 里调用 `telaifu-coverC`，提供标题和原照。来源沿用确认稿字形与贴纸，按[字距样张](references/source-badge-spacing.png)把文案排为一行，冒号两侧与正文间隔一致。指定其他门店时保留原前缀字形，用微软雅黑粗体排右侧店名。安装时导入完整技能目录，以便合成脚本读取随包贴纸。
 
 ## 制作与验收
 

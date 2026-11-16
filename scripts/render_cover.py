@@ -18,6 +18,15 @@ SUBTITLE_POSITION = (153, 203)
 SOURCE_TOP = 1214
 HEADLINE_BOTTOM = 425
 DEFAULT_SOURCE = "特徕福昌岗店"
+# Positions in the bundled 782 × 124 source badge, before display scaling.
+SOURCE_TEXT_BOX = (137, 23, 735, 82)
+SOURCE_TEXT_START = 143
+SOURCE_TRACKING = 14
+SOURCE_PREFIX_GLYPHS = 5
+SOURCE_GLYPH_SPANS = (
+    (143, 186), (196, 241), (251, 294), (304, 348), (363, 372),
+    (408, 451), (461, 505), (515, 558), (571, 608), (624, 661), (674, 717),
+)
 CREAM = "#fff9e2"
 GOLD = "#ffe471"
 DARK = "#3d170a"
@@ -106,26 +115,70 @@ def normalize_shop(value):
     return shop or DEFAULT_SOURCE
 
 
-def replace_badge_store(badge, shop):
-    # The reference raster's store-name slot. Keep the prefix and ornaments intact.
-    x1, y1, x2, y2 = 398, 23, 730, 82
+def clear_badge_text(badge):
+    x1, y1, x2, y2 = SOURCE_TEXT_BOX
     upper = badge.crop((x1, y1 - 1, x2, y1))
     lower = badge.crop((x1, y2, x2, y2 + 1))
     for y in range(y1, y2):
         gradient_row = Image.blend(upper, lower, (y - y1 + 1) / (y2 - y1 + 1))
         badge.paste(gradient_row, (x1, y))
-    draw = ImageDraw.Draw(badge)
-    font, (left, top, _, bottom) = fit_font(
-        draw, shop, windows_font("msyhbd.ttc"), 54, 22, x2 - 407, 44
-    )
-    draw.text((407 - left, 53 - (bottom - top) // 2 - top), shop, font=font, fill=DARK)
+
+
+def place_reference_glyphs(badge, reference, spans, tracking):
+    _, top, _, bottom = SOURCE_TEXT_BOX
+    x = SOURCE_TEXT_START
+    for left, right in spans:
+        glyph = reference.crop((left - 2, top, right + 2, bottom))
+        ink = glyph.convert("L").point(lambda tone: 255 if tone < 215 else 0)
+        badge.paste(glyph, (x - 2, top), ink)
+        x += right - left + tracking
+    return x
+
+
+def shop_glyph_box(font, character):
+    mask, (x, y) = font.getmask2(character, mode="L")
+    visible = Image.frombytes("L", mask.size, bytes(mask)).point(lambda tone: 255 if tone >= 160 else 0)
+    box = visible.getbbox() or mask.getbbox()
+    if box is None:
+        return 0, 0, round(font.getlength(character)), 0
+    left, top, right, bottom = box
+    return x + left, y + top, x + right, y + bottom
+
+
+def fit_badge_shop(shop, prefix):
+    font_path = windows_font("msyhbd.ttc")
+    prefix_width = sum(right - left for left, right in prefix)
+    for tracking in (SOURCE_TRACKING, 10, 6, 3, 1):
+        room = SOURCE_TEXT_BOX[2] - SOURCE_TEXT_START - prefix_width - len(prefix) * tracking
+        for size in range(54, 21, -1):
+            font = ImageFont.truetype(str(font_path), size)
+            boxes = [shop_glyph_box(font, character) for character in shop]
+            visible = [box for box in boxes if box[3] > box[1]]
+            if not visible:
+                break
+            top = min(box[1] for box in visible)
+            bottom = max(box[3] for box in visible)
+            width = sum(right - left for left, _, right, _ in boxes) + (len(boxes) - 1) * tracking
+            if width <= room and bottom - top <= 44:
+                return font, boxes, 53 - (bottom - top) // 2 - top, tracking
+    raise ValueError(f"Store name exceeds the readable space in the C source badge: {shop}")
 
 
 def source_layer(shop):
     with Image.open(ASSETS / "approved-source-badge.png") as approved:
-        badge = approved.convert("RGBA")
-    if shop != DEFAULT_SOURCE:
-        replace_badge_store(badge, shop)
+        reference = approved.convert("RGBA")
+    badge = reference.copy()
+    clear_badge_text(badge)
+    if shop == DEFAULT_SOURCE:
+        place_reference_glyphs(badge, reference, SOURCE_GLYPH_SPANS, SOURCE_TRACKING)
+    else:
+        prefix = SOURCE_GLYPH_SPANS[:SOURCE_PREFIX_GLYPHS]
+        font, boxes, y, tracking = fit_badge_shop(shop, prefix)
+        x = place_reference_glyphs(badge, reference, prefix, tracking)
+        draw = ImageDraw.Draw(badge)
+        for character, (left, _, right, _) in zip(shop, boxes):
+            draw.text((x - left, y), character, font=font, fill=DARK)
+            x += right - left + tracking
     return ImageOps.contain(badge, (895, 145), method=RESAMPLE)
 
 
