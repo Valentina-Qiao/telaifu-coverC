@@ -260,10 +260,12 @@ def render(request):
             raise ValueError("This crop needs a larger reduction. Recheck the crop bounds before changing the frame ratio.")
         group = group.resize((round(group.width * scale), crop_height - 8), RESAMPLE)
 
-    ideal_top = (HEIGHT - group.height) // 2
-    lower_bound = crop_top + min(16, (crop_height - group.height) // 2)
-    upper_bound = crop_top + crop_height - group.height - (lower_bound - crop_top)
-    y = min(max(ideal_top, lower_bound), upper_bound)
+    # A centered preview and the full canvas share the same center.
+    # For an offset platform crop, use the center of the visible window.
+    crop_margin = crop_height - group.height
+    margin_top = crop_margin // 2
+    margin_bottom = crop_margin - margin_top
+    y = crop_top + margin_top
     with Image.open(ASSETS / "backdrop.png") as image:
         canvas = image.convert("RGBA").resize((WIDTH, HEIGHT), RESAMPLE)
     canvas.alpha_composite(group, ((WIDTH - group.width) // 2, y))
@@ -271,12 +273,13 @@ def render(request):
     metrics = {
         "frame_height_px": frame_height,
         "frame_percent": round(100 * frame_height / HEIGHT, 2),
+        "center_scope": "canvas" if 2 * crop_top + crop_height == HEIGHT else "crop",
         "group_top_px": y,
         "group_bottom_px": HEIGHT - y - group.height,
         "crop_top_px": crop_top,
         "crop_bottom_px": crop_top + crop_height,
-        "crop_margin_top_px": y - crop_top,
-        "crop_margin_bottom_px": crop_top + crop_height - y - group.height,
+        "crop_margin_top_px": margin_top,
+        "crop_margin_bottom_px": margin_bottom,
     }
     return canvas.convert("RGB"), metrics
 
