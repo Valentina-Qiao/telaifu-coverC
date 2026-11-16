@@ -2,7 +2,12 @@
 
 `telaifu-coverC` 是一个 Codex Skill。提供标题和一张产品原图，生成一张 **1080 × 1920** 的竖版 PNG。版式包含棕色底纹、粗笔刷标题、白色双线产品框和来源贴纸。标准相框高 **989 px**，约占整图高度的 **51.5%**。
 
-![C 版确认样图](assets/approved-cover.png)
+## 参考图
+
+- [图一｜完整 9:16 封面](references/approved-cover.png)用于确定成品画布和相框比例。
+- [图二｜后台裁剪验收截图](references/approved-platform-crop.png)用于核对约 3:4 可见区。
+
+![图一，C 版完整封面](references/approved-cover.png)
 
 ## 安装与使用
 
