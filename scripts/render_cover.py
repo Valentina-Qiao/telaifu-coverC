@@ -10,10 +10,13 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 
 
 WIDTH, HEIGHT = 1080, 1920
-FRAME = (43, 398, 1037, 1387)
+STANDARD_MARGIN = 267
+STANDARD_CONTENT_HEIGHT = HEIGHT - 2 * STANDARD_MARGIN
+FRAME_HEIGHT = 989
+FRAME = (43, STANDARD_CONTENT_HEIGHT - FRAME_HEIGHT, 1037, STANDARD_CONTENT_HEIGHT)
 SUBTITLE_POSITION = (153, 203)
 SOURCE_TOP = 1214
-HEADLINE_BOTTOM = 426
+HEADLINE_BOTTOM = 425
 DEFAULT_SOURCE = "特徕福昌岗店"
 CREAM = "#fff9e2"
 GOLD = "#ffe471"
@@ -271,6 +274,7 @@ def render(request):
     canvas.alpha_composite(group, ((WIDTH - group.width) // 2, y))
     frame_height = round((FRAME[3] - FRAME[1]) * scale)
     metrics = {
+        "group_height_px": group.height,
         "frame_height_px": frame_height,
         "frame_percent": round(100 * frame_height / HEIGHT, 2),
         "center_scope": "canvas" if 2 * crop_top + crop_height == HEIGHT else "crop",
