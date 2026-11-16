@@ -1,0 +1,5 @@
+interface:
+  display_name: "特徕福信息流 C 版封面"
+  default_prompt: "使用 $telaifu-coverC 制作特徕福信息流 C 版封面，标题和配图见本条消息。"
+policy:
+  allow_implicit_invocation: true
