@@ -23,6 +23,9 @@ SOURCE_TEXT_BOX = (137, 23, 735, 82)
 SOURCE_TEXT_START = 143
 SOURCE_TRACKING = 14
 SOURCE_PREFIX_GLYPHS = 5
+# This size gives the rendered YaHei glyphs the same visible height as the reference lettering.
+SOURCE_STORE_FONT_SIZE = 46
+SOURCE_ROW_PAD = 2
 SOURCE_GLYPH_SPANS = (
     (143, 186), (196, 241), (251, 294), (304, 348), (363, 372),
     (408, 451), (461, 505), (515, 558), (571, 608), (624, 661), (674, 717),
@@ -124,14 +127,14 @@ def clear_badge_text(badge):
         badge.paste(gradient_row, (x1, y))
 
 
-def place_reference_glyphs(badge, reference, spans, tracking):
+def place_reference_glyphs(row, reference, spans):
     _, top, _, bottom = SOURCE_TEXT_BOX
-    x = SOURCE_TEXT_START
+    x = SOURCE_ROW_PAD
     for left, right in spans:
-        glyph = reference.crop((left - 2, top, right + 2, bottom))
+        glyph = reference.crop((left - SOURCE_ROW_PAD, top, right + SOURCE_ROW_PAD, bottom))
         ink = glyph.convert("L").point(lambda tone: 255 if tone < 215 else 0)
-        badge.paste(glyph, (x - 2, top), ink)
-        x += right - left + tracking
+        row.paste(glyph, (x - SOURCE_ROW_PAD, 0), ink)
+        x += right - left + SOURCE_TRACKING
     return x
 
 
@@ -145,23 +148,31 @@ def shop_glyph_box(font, character):
     return x + left, y + top, x + right, y + bottom
 
 
-def fit_badge_shop(shop, prefix):
-    font_path = windows_font("msyhbd.ttc")
-    prefix_width = sum(right - left for left, right in prefix)
-    for tracking in (SOURCE_TRACKING, 10, 6, 3, 1):
-        room = SOURCE_TEXT_BOX[2] - SOURCE_TEXT_START - prefix_width - len(prefix) * tracking
-        for size in range(54, 21, -1):
-            font = ImageFont.truetype(str(font_path), size)
-            boxes = [shop_glyph_box(font, character) for character in shop]
-            visible = [box for box in boxes if box[3] > box[1]]
-            if not visible:
-                break
-            top = min(box[1] for box in visible)
-            bottom = max(box[3] for box in visible)
-            width = sum(right - left for left, _, right, _ in boxes) + (len(boxes) - 1) * tracking
-            if width <= room and bottom - top <= 44:
-                return font, boxes, 53 - (bottom - top) // 2 - top, tracking
-    raise ValueError(f"Store name exceeds the readable space in the C source badge: {shop}")
+def badge_text_row(reference, shop):
+    text_height = SOURCE_TEXT_BOX[3] - SOURCE_TEXT_BOX[1]
+    spans = SOURCE_GLYPH_SPANS
+    boxes = []
+    if shop != DEFAULT_SOURCE:
+        spans = SOURCE_GLYPH_SPANS[:SOURCE_PREFIX_GLYPHS]
+        font = ImageFont.truetype(str(windows_font("msyhbd.ttc")), SOURCE_STORE_FONT_SIZE)
+        boxes = [shop_glyph_box(font, char) for char in shop]
+    widths = [right - left for left, right in spans]
+    widths.extend(right - left for left, _, right, _ in boxes)
+    row_width = sum(widths) + (len(widths) - 1) * SOURCE_TRACKING + 2 * SOURCE_ROW_PAD
+    row = Image.new("RGBA", (row_width, text_height))
+    x = place_reference_glyphs(row, reference, spans)
+    if boxes:
+        visible = [box for box in boxes if box[3] > box[1]]
+        if not visible:
+            raise ValueError(f"The store name has no visible glyphs: {shop}")
+        top = min(box[1] for box in visible)
+        bottom = max(box[3] for box in visible)
+        baseline = (text_height - (bottom - top)) // 2 - top
+        draw = ImageDraw.Draw(row)
+        for character, (left, _, right, _) in zip(shop, boxes):
+            draw.text((x - left, baseline), character, font=font, fill=DARK)
+            x += right - left + SOURCE_TRACKING
+    return row
 
 
 def source_layer(shop):
@@ -169,16 +180,11 @@ def source_layer(shop):
         reference = approved.convert("RGBA")
     badge = reference.copy()
     clear_badge_text(badge)
-    if shop == DEFAULT_SOURCE:
-        place_reference_glyphs(badge, reference, SOURCE_GLYPH_SPANS, SOURCE_TRACKING)
-    else:
-        prefix = SOURCE_GLYPH_SPANS[:SOURCE_PREFIX_GLYPHS]
-        font, boxes, y, tracking = fit_badge_shop(shop, prefix)
-        x = place_reference_glyphs(badge, reference, prefix, tracking)
-        draw = ImageDraw.Draw(badge)
-        for character, (left, _, right, _) in zip(shop, boxes):
-            draw.text((x - left, y), character, font=font, fill=DARK)
-            x += right - left + tracking
+    row = badge_text_row(reference, shop)
+    _, top, right, bottom = SOURCE_TEXT_BOX
+    x = SOURCE_TEXT_START - SOURCE_ROW_PAD
+    fitted = ImageOps.contain(row, (right - x, bottom - top), method=RESAMPLE)
+    badge.alpha_composite(fitted, (x, top + (bottom - top - fitted.height) // 2))
     return ImageOps.contain(badge, (895, 145), method=RESAMPLE)
 
 
